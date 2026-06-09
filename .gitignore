@@ -1,0 +1,33 @@
+# secrets / local config
+.env
+
+# python
+__pycache__/
+*.pyc
+.venv/
+venv/
+*.egg-info/
+.pytest_cache/
+
+# generated data + run artifacts
+usecases/*/data/raw/
+usecases/*/data/sample/
+.runs/
+*.parquet
+
+# terraform
+infra/terraform/.terraform/
+infra/terraform/*.tfstate
+infra/terraform/*.tfstate.*
+infra/terraform/.terraform.lock.hcl
+infra/terraform/terraform.tfstate.d/
+crash.log
+
+# databricks asset bundle
+.databricks/
+bundle/.databricks/
+
+# spark
+metastore_db/
+derby.log
+spark-warehouse/
