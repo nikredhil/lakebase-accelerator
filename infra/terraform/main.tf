@@ -18,19 +18,11 @@ locals {
   }
 }
 
-# Smallest LTS runtime that matches the requested spark_version, resolved live.
-data "databricks_spark_version" "lts" {
-  long_term_support = true
-  spark_version     = var.spark_version
-}
-
-data "databricks_current_user" "me" {}
-
 # Job/all-purpose compute: 1 driver + autoscale 1..max_workers (<=2).
 # autotermination + autoscale keep billing bounded; `terraform destroy` removes it.
 resource "databricks_cluster" "this" {
   cluster_name            = "${local.prefix}-cluster"
-  spark_version           = data.databricks_spark_version.lts.id
+  spark_version           = var.spark_version
   node_type_id            = local.node_type
   autotermination_minutes = var.autotermination_minutes
 
@@ -40,17 +32,18 @@ resource "databricks_cluster" "this" {
   }
 
   spark_conf = {
-    # Single-node-friendly + small-data-friendly defaults.
-    "spark.databricks.cluster.profile" = "singleNode"
-    "spark.master"                     = "local[*, 4]"
+    # Small-data friendly: keep the shuffle small so jobs don't over-partition.
+    "spark.sql.shuffle.partitions" = "8"
   }
 
   custom_tags = local.tags
 }
 
-# A Unity Catalog schema scoped to the use case (assets land here; dropped on destroy).
+# Optional Unity Catalog schema for the use case's assets. Off by default because
+# it assumes a "main" catalog with create rights; enable once UC is confirmed.
 resource "databricks_schema" "this" {
-  catalog_name  = "main"
+  count         = var.create_schema ? 1 : 0
+  catalog_name  = var.catalog_name
   name          = replace(local.prefix, "-", "_")
   comment       = "Use-case schema managed by the lakebase accelerator (${var.usecase})."
   force_destroy = true

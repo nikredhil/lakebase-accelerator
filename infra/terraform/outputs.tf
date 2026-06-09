@@ -8,8 +8,8 @@ output "cluster_name" {
 }
 
 output "schema_full_name" {
-  value       = "${databricks_schema.this.catalog_name}.${databricks_schema.this.name}"
-  description = "Unity Catalog schema for this use case's assets."
+  value       = var.create_schema ? "${databricks_schema.this[0].catalog_name}.${databricks_schema.this[0].name}" : ""
+  description = "Unity Catalog schema for this use case's assets (empty when create_schema=false)."
 }
 
 output "node_type_id" {

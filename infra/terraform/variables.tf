@@ -67,3 +67,15 @@ variable "autotermination_minutes" {
   description = "Idle minutes before the cluster auto-terminates (stops billing)."
   default     = 20
 }
+
+variable "create_schema" {
+  type        = bool
+  description = "Create a Unity Catalog schema for the use case. Off by default (assumes UC + a writable catalog)."
+  default     = false
+}
+
+variable "catalog_name" {
+  type        = string
+  description = "UC catalog to create the use-case schema in (when create_schema=true)."
+  default     = "main"
+}
