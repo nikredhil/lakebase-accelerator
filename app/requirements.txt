@@ -1,0 +1,4 @@
+# UI extras (optional). Run: pip install -r app/requirements.txt
+streamlit>=1.36.0
+databricks-sdk>=0.30.0
+python-dotenv>=1.0.0

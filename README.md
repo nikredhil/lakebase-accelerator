@@ -36,6 +36,14 @@ lakebase destroy code_migration                                     # stops bill
 Open `notebooks/lakebase_control_panel.py` in your Databricks workspace. It provides
 widget-based controls to deploy, destroy, and monitor use cases without touching the CLI.
 
+## Streamlit UI (local)
+A colorful local control plane over the CLI: set cost knobs → Plan / Deploy / Status /
+Destroy, plus a live cluster + warehouse panel with status badges.
+```bash
+make install-ui     # pip install -r app/requirements.txt
+make ui             # streamlit run app/streamlit_app.py
+```
+
 ## Cost knobs
 `use_spot` (spot workers, ~60-90% off; driver on-demand) | `single_node` (driver
 only, cheapest) | `max_workers` (<=2) | `autotermination_minutes` | `node_type_id`
