@@ -54,6 +54,19 @@ def detect_language(code: str, client=None, provider: str = "anthropic") -> Dete
     if provider == "rule":
         return detect_language_rule(code)
 
+    if provider == "databricks":
+        from usecases.code_migration.pipeline.llm import databricks_chat
+
+        out = databricks_chat(
+            _SYSTEM + "\nRespond with ONLY one word: sql, dbt, spark, or unknown.",
+            f"Classify this code:\n\n```\n{code}\n```",
+            max_tokens=20,
+        )
+        lang = out.strip().lower().split()[0].strip(".,`") if out.strip() else "unknown"
+        if lang not in ("sql", "dbt", "spark", "unknown"):
+            lang = "unknown"
+        return Detection(lang, 0.9, "Databricks-hosted Claude classification.")
+
     import anthropic
 
     client = client or anthropic.Anthropic()

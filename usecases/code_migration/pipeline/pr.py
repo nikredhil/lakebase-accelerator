@@ -45,37 +45,42 @@ def write_converted(example_key: str, code: str) -> Path:
 
 
 def raise_pr(example_key: str, code: str, summary: str, dry_run: bool = True) -> PRResult:
-    out = write_converted(example_key, code)
     branch = f"migrate/{example_key}-to-pyspark"
-    rel = out.relative_to(REPO_ROOT)
+    base = SETTINGS.pr_base_branch
+    out_rel = (CONVERTED_DIR / f"{example_key}_transform.py").relative_to(REPO_ROOT)
 
     if dry_run:
+        out = write_converted(example_key, code)
         detail = (
             "[dry-run] would run:\n"
-            f"  git checkout -b {branch}\n"
-            f"  git add {rel}\n"
-            f'  git commit -m "Convert {example_key} -> Databricks PySpark"\n'
+            f"  git checkout {base} && git checkout -B {branch}\n"
+            f"  git add {out_rel} && git commit -m 'Convert {example_key} -> Databricks PySpark'\n"
             f"  git push -u origin {branch}\n"
-            f"  gh pr create --base {SETTINGS.pr_base_branch} --title ... --body ..."
+            f"  gh pr create --base {base} --title ... --body ..."
         )
         return PRResult(False, detail, branch, out)
 
     if not _has_gh():
-        return PRResult(False, "gh CLI not found; install it or use dry_run.", branch, out)
+        return PRResult(False, "gh CLI not found; install it or use dry_run.", branch, CONVERTED_DIR / f"{example_key}_transform.py")
 
-    _git(["checkout", "-b", branch])
-    _git(["add", str(rel)])
+    # Always branch fresh from base so PRs don't stack on each other.
+    _git(["checkout", base])
+    _git(["checkout", "-B", branch])
+    out = write_converted(example_key, code)  # write the file ON the feature branch
+    _git(["add", "-f", str(out_rel)])  # converted/ is gitignored; force-add the artifact on the PR branch
     _git(["commit", "-m", f"Convert {example_key} -> Databricks PySpark (validated)"])
-    push = _git(["push", "-u", "origin", branch], check=False)
+    push = _git(["push", "-u", "origin", branch, "--force"], check=False)
     if push.returncode != 0:
+        _git(["checkout", base], check=False)
         return PRResult(False, f"git push failed: {push.stderr.strip()}", branch, out)
 
     body = f"Automated conversion validated by dual-run on a data sample.\n\n{summary}"
     pr = subprocess.run(
-        ["gh", "pr", "create", "--base", SETTINGS.pr_base_branch,
+        ["gh", "pr", "create", "--base", base, "--head", branch,
          "--title", f"Convert {example_key} -> Databricks PySpark", "--body", body],
         cwd=REPO_ROOT, text=True, capture_output=True,
     )
+    _git(["checkout", base], check=False)  # return to base for the next example
     if pr.returncode != 0:
         return PRResult(False, f"gh pr create failed: {pr.stderr.strip()}", branch, out)
     return PRResult(True, pr.stdout.strip(), branch, out)

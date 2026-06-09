@@ -12,6 +12,7 @@ venv/
 # generated data + run artifacts
 usecases/*/data/raw/
 usecases/*/data/sample/
+usecases/code_migration/converted/
 .runs/
 *.parquet
 

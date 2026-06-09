@@ -17,11 +17,13 @@ from usecases.code_migration.pipeline.orchestrator import run_example
 def _parse(argv: list[str]) -> argparse.Namespace:
     p = argparse.ArgumentParser(prog="code_migration")
     p.add_argument("--example", default="all", choices=[*EXAMPLES, "all"])
-    p.add_argument("--backend", default=None, choices=["local", "databricks"],
-                   help="candidate execution backend (default: CANDIDATE_BACKEND env / local)")
-    p.add_argument("--provider", default=None, choices=["anthropic", "rule"],
-                   help="conversion provider (default: CONVERTER_PROVIDER env / anthropic). "
-                        "'rule' = deterministic, no API spend.")
+    p.add_argument("--backend", default=None, choices=["local", "databricks", "databricks_sql"],
+                   help="candidate backend: local pyspark | databricks (cluster) | "
+                        "databricks_sql (serverless warehouse). Default: CANDIDATE_BACKEND env.")
+    p.add_argument("--provider", default=None, choices=["anthropic", "rule", "databricks"],
+                   help="conversion provider (default: CONVERTER_PROVIDER env). "
+                        "rule = deterministic (no API) | anthropic = Claude API | "
+                        "databricks = workspace-hosted Claude (no external key).")
     p.add_argument("--max-retries", type=int, default=3)
     p.add_argument("--no-pr", action="store_true", help="skip PR creation")
     p.add_argument("--pr-live", action="store_true", help="actually push + open PR (default: dry-run)")

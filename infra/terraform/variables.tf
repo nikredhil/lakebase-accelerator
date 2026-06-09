@@ -68,6 +68,18 @@ variable "autotermination_minutes" {
   default     = 20
 }
 
+variable "use_spot" {
+  type        = bool
+  description = "Use spot/preemptible workers for low cost (driver stays on-demand). ~60-90% cheaper, can be reclaimed."
+  default     = true
+}
+
+variable "single_node" {
+  type        = bool
+  description = "Cheapest option: a single (driver-only) node, no workers. Fine for small data."
+  default     = false
+}
+
 variable "create_schema" {
   type        = bool
   description = "Create a Unity Catalog schema for the use case. Off by default (assumes UC + a writable catalog)."

@@ -1,6 +1,9 @@
 # --- Core: Claude (code detection + conversion) ---
 anthropic>=0.69.0
 
+# --- Observability: MLflow run logging + tracing (to the Databricks workspace) ---
+mlflow>=2.14.0
+
 # --- Use-case pipeline: data + reference execution engine ---
 pandas>=2.0.0
 pyarrow>=14.0.0

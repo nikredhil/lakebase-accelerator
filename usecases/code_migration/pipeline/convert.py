@@ -72,13 +72,19 @@ def convert(code: str, language: str, client=None, provider: str = "anthropic") 
     if provider == "rule":
         return convert_rule(code, language)
 
-    import anthropic
-
-    client = client or anthropic.Anthropic()
     user = (
         f"Convert this {language} code into a Databricks PySpark `transform(spark)` module:\n\n"
         f"```\n{code}\n```"
     )
+
+    if provider == "databricks":
+        from usecases.code_migration.pipeline.llm import databricks_chat
+
+        return _strip(databricks_chat(_system(), user, max_tokens=16000))
+
+    import anthropic
+
+    client = client or anthropic.Anthropic()
     with client.messages.stream(
         model=MODEL,
         max_tokens=16000,
@@ -92,34 +98,29 @@ def convert(code: str, language: str, client=None, provider: str = "anthropic") 
     return _strip(text)
 
 
-def learn_lesson(
-    original: str,
-    converted: str,
-    failure: str,
-    client: anthropic.Anthropic | None = None,
-) -> str:
+def learn_lesson(original: str, converted: str, failure: str, client=None, provider: str = "anthropic") -> str:
     """Distill a one-line reusable lesson from a failed conversion and persist it."""
-    import anthropic
-
-    client = client or anthropic.Anthropic()
-    resp = client.messages.create(
-        model=MODEL,
-        max_tokens=1000,
-        thinking={"type": "adaptive"},
-        system=(
-            "A SQL/Spark/dbt -> PySpark conversion failed validation. Extract ONE "
-            "concise, reusable, imperative lesson (max 25 words) that would prevent "
-            "this class of error next time. Output only the lesson sentence."
-        ),
-        messages=[{
-            "role": "user",
-            "content": (
-                f"ORIGINAL:\n{original}\n\nCONVERTED:\n{converted}\n\n"
-                f"VALIDATION FAILURE:\n{failure}"
-            ),
-        }],
+    system = (
+        "A SQL/Spark/dbt -> PySpark conversion failed validation. Extract ONE "
+        "concise, reusable, imperative lesson (max 25 words) that would prevent "
+        "this class of error next time. Output only the lesson sentence."
     )
-    lesson = next(b.text for b in resp.content if b.type == "text").strip()
+    user = f"ORIGINAL:\n{original}\n\nCONVERTED:\n{converted}\n\nVALIDATION FAILURE:\n{failure}"
+
+    if provider == "databricks":
+        from usecases.code_migration.pipeline.llm import databricks_chat
+
+        lesson = databricks_chat(system, user, max_tokens=200).strip()
+    else:
+        import anthropic
+
+        client = client or anthropic.Anthropic()
+        resp = client.messages.create(
+            model=MODEL, max_tokens=1000, thinking={"type": "adaptive"},
+            system=system, messages=[{"role": "user", "content": user}],
+        )
+        lesson = next(b.text for b in resp.content if b.type == "text").strip()
+
     _append_lesson(lesson)
     return lesson
 
