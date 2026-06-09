@@ -14,6 +14,7 @@ import pytest
 from usecases.code_migration.config import EXAMPLES
 from usecases.code_migration.data import generate_mock_data
 from usecases.code_migration.pipeline import compare, convert, detect, reference_runner
+from usecases.code_migration.pipeline.safety import UnsafeCodeError, validate_transform_code
 
 
 def test_generate_and_load_sample():
@@ -56,6 +57,25 @@ def test_rule_detect_classifies_examples():
     assert detect.detect_language_rule(EXAMPLES["sql"].path.read_text()).language == "sql"
     assert detect.detect_language_rule(EXAMPLES["dbt"].path.read_text()).language == "dbt"
     assert detect.detect_language_rule(EXAMPLES["spark"].path.read_text()).language == "spark"
+
+
+def test_safety_guard_accepts_generated_code():
+    # Rule-converted output for every example must pass the guard.
+    for key, lang in (("sql", "sql"), ("dbt", "dbt"), ("spark", "spark")):
+        validate_transform_code(convert.convert_rule(EXAMPLES[key].path.read_text(), lang))
+
+
+def test_safety_guard_rejects_unsafe_code():
+    bad = [
+        "import os\ndef transform(spark):\n    os.system('rm -rf /')\n    return spark.table('orders')",
+        "def transform(spark):\n    exec('print(1)')\n    return spark.table('orders')",
+        "def transform(spark):\n    open('/etc/passwd').read()\n    return spark.table('orders')",
+        "from pyspark.sql import functions as F\nresult = 1",  # no transform()
+        "import requests\ndef transform(spark):\n    return spark.table('orders')",
+    ]
+    for code in bad:
+        with pytest.raises(UnsafeCodeError):
+            validate_transform_code(code)
 
 
 def test_rule_convert_produces_valid_transform():

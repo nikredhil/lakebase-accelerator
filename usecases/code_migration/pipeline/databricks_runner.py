@@ -24,6 +24,11 @@ def _load_transform(code: str):
 
 
 def run_candidate(code: str, tables: dict[str, pd.DataFrame], backend: str = "local") -> pd.DataFrame:
+    # Static safety gate BEFORE any execution path (local exec, cluster, or SQL).
+    from usecases.code_migration.pipeline.safety import validate_transform_code
+
+    validate_transform_code(code)
+
     if backend == "databricks_sql":
         # Run the converted SQL on a serverless SQL warehouse (fast; no cluster boot).
         from usecases.code_migration.pipeline.databricks_sql_runner import run_candidate_sql
