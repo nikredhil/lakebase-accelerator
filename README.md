@@ -68,6 +68,29 @@ make deploy                   # spin 1-2 node cluster + deploy the job
 make destroy                  # tear down (STOP BILLING)
 ```
 
+### Cluster cost profiles (1–2 nodes, low cost)
+
+The Terraform cluster is tuned to be cheap and auto-terminating:
+
+| Profile | tfvars | Shape | When |
+|---|---|---|---|
+| Default | `usecases/code_migration.tfvars` | 1 on-demand driver + **1–2 spot workers**, 15-min auto-off | "1–2 nodes, low cost"; scales |
+| Lowest | `usecases/code_migration_lowcost.tfvars` | **single driver-only node**, 10-min auto-off | cheapest; fine for the small sample |
+
+Knobs (in the tfvars or via `-var`): `use_spot` (spot/preemptible workers, ~60–90%
+cheaper; driver stays on-demand), `single_node` (driver only), `max_workers` (≤2),
+`autotermination_minutes`, `node_type_id`. Spot uses `*_WITH_FALLBACK_*`, so it
+falls back to on-demand if capacity is unavailable rather than failing.
+
+```bash
+# cheapest single-node run, then tear down
+terraform -chdir=infra/terraform apply -var-file=usecases/code_migration_lowcost.tfvars
+terraform -chdir=infra/terraform destroy -var-file=usecases/code_migration_lowcost.tfvars
+```
+
+> Trade-off: a cluster has a ~5-min cold boot. For fast iteration use serverless;
+> use the cluster to satisfy the 1–2 node requirement and demo spin-up/destroy.
+
 The control plane is also importable (the "few function calls"):
 
 ```python
