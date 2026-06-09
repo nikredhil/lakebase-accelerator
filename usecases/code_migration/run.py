@@ -19,6 +19,9 @@ def _parse(argv: list[str]) -> argparse.Namespace:
     p.add_argument("--example", default="all", choices=[*EXAMPLES, "all"])
     p.add_argument("--backend", default=None, choices=["local", "databricks"],
                    help="candidate execution backend (default: CANDIDATE_BACKEND env / local)")
+    p.add_argument("--provider", default=None, choices=["anthropic", "rule"],
+                   help="conversion provider (default: CONVERTER_PROVIDER env / anthropic). "
+                        "'rule' = deterministic, no API spend.")
     p.add_argument("--max-retries", type=int, default=3)
     p.add_argument("--no-pr", action="store_true", help="skip PR creation")
     p.add_argument("--pr-live", action="store_true", help="actually push + open PR (default: dry-run)")
@@ -30,7 +33,9 @@ def main(argv: list[str] | None = None) -> int:
 
     args = _parse(argv or [])
     backend = args.backend or SETTINGS.candidate_backend
+    provider = args.provider or SETTINGS.converter_provider
 
+    print(f"[code_migration] backend={backend} provider={provider}")
     print(f"[code_migration] generating small mock data sample ...")
     generate_mock_data.generate()
 
@@ -44,6 +49,7 @@ def main(argv: list[str] | None = None) -> int:
             max_retries=args.max_retries,
             raise_pull_request=not args.no_pr,
             pr_dry_run=not args.pr_live,
+            provider=provider,
         )
         results.append(res)
         status = "PASS" if res.passed else "FAIL"

@@ -7,8 +7,6 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 
-import anthropic
-
 from usecases.code_migration.config import Example
 from usecases.code_migration.data import generate_mock_data
 from usecases.code_migration.pipeline import compare, convert, databricks_runner, detect, pr, reference_runner
@@ -31,15 +29,23 @@ def run_example(
     max_retries: int = 3,
     raise_pull_request: bool = True,
     pr_dry_run: bool = True,
-    client: anthropic.Anthropic | None = None,
+    provider: str = "anthropic",
+    client=None,
 ) -> ExampleResult:
-    client = client or anthropic.Anthropic()
+    # Only the anthropic provider needs an API client; "rule" is fully offline.
+    if provider == "anthropic" and client is None:
+        import anthropic
+
+        client = anthropic.Anthropic()
+    if provider == "rule":
+        max_retries = 1  # deterministic; retrying an identical conversion is pointless
+
     result = ExampleResult(example=example.key)
     source = example.path.read_text()
     tables = generate_mock_data.load_sample()  # small sample, shared by both runs
 
     # Step 1: detect
-    det = detect.detect_language(source, client=client)
+    det = detect.detect_language(source, client=client, provider=provider)
     result.detected_language = det.language
     language = det.language if det.language != "unknown" else example.expected_language
 
@@ -52,8 +58,8 @@ def run_example(
     failure = ""
     for attempt in range(1, max_retries + 1):
         result.attempts = attempt
-        # Step 2: convert (prompt includes SKILLS.md, which grows on each failure)
-        converted = convert.convert(source, language, client=client)
+        # Step 2: convert (anthropic prompt includes SKILLS.md, which grows on each failure)
+        converted = convert.convert(source, language, client=client, provider=provider)
         try:
             # Step 3 + 4: run candidate on the sample, compare to reference
             candidate = databricks_runner.run_candidate(converted, tables, backend=candidate_backend)
@@ -66,10 +72,11 @@ def run_example(
         except Exception as exc:  # candidate failed to execute -> treat as validation failure
             failure = f"Candidate execution error: {exc}"
 
-        # Step 6: learn from the failure, then retry
-        lesson = convert.learn_lesson(source, converted, failure, client=client)
-        result.lessons.append(lesson)
+        # Step 6: learn from the failure, then retry (anthropic only — rule is deterministic)
         result.detail = failure
+        if provider == "anthropic":
+            lesson = convert.learn_lesson(source, converted, failure, client=client)
+            result.lessons.append(lesson)
 
     # Step 5: PR on success
     if result.passed and raise_pull_request:

@@ -8,10 +8,9 @@ from __future__ import annotations
 
 import re
 
-import anthropic
-
 from accelerator.config import SKILLS_FILE
 from usecases.code_migration.config import TABLE_SCHEMA
+from usecases.code_migration.pipeline.reference_runner import render_dbt
 
 MODEL = "claude-opus-4-8"
 
@@ -42,7 +41,39 @@ def _strip(code: str) -> str:
     return _FENCE.sub("", code).strip()
 
 
-def convert(code: str, language: str, client: anthropic.Anthropic | None = None) -> str:
+def _wrap_sql(sql: str) -> str:
+    """Wrap a SQL query into a runnable transform(spark) (temp views pre-registered)."""
+    sql = sql.strip().rstrip(";")
+    return (
+        "from pyspark.sql import DataFrame\n\n\n"
+        "def transform(spark) -> DataFrame:\n"
+        '    return spark.sql(\n        """\n'
+        f"{sql}\n"
+        '        """\n    )\n'
+    )
+
+
+def convert_rule(code: str, language: str) -> str:
+    """Deterministic conversion — no API call.
+
+    sql  -> spark.sql(<original>)         dbt -> spark.sql(<jinja rendered>)
+    spark-> pass through (already a transform).
+    """
+    if language == "sql":
+        return _wrap_sql(code)
+    if language == "dbt":
+        return _wrap_sql(render_dbt(code))
+    if language == "spark":
+        return code.strip()
+    raise ValueError(f"rule converter cannot handle language {language!r}")
+
+
+def convert(code: str, language: str, client=None, provider: str = "anthropic") -> str:
+    if provider == "rule":
+        return convert_rule(code, language)
+
+    import anthropic
+
     client = client or anthropic.Anthropic()
     user = (
         f"Convert this {language} code into a Databricks PySpark `transform(spark)` module:\n\n"
@@ -68,6 +99,8 @@ def learn_lesson(
     client: anthropic.Anthropic | None = None,
 ) -> str:
     """Distill a one-line reusable lesson from a failed conversion and persist it."""
+    import anthropic
+
     client = client or anthropic.Anthropic()
     resp = client.messages.create(
         model=MODEL,

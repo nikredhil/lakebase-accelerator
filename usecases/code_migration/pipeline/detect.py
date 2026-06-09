@@ -1,10 +1,14 @@
-"""Step 1: use Claude to detect the source language (sql | spark | dbt)."""
+"""Step 1: detect the source language (sql | spark | dbt).
+
+Two providers:
+  - "anthropic": Claude classifies (production).
+  - "rule":      deterministic regex rules (demo / no API spend).
+"""
 from __future__ import annotations
 
 import json
+import re
 from dataclasses import dataclass
-
-import anthropic
 
 MODEL = "claude-opus-4-8"
 
@@ -35,7 +39,23 @@ class Detection:
     reasoning: str
 
 
-def detect_language(code: str, client: anthropic.Anthropic | None = None) -> Detection:
+def detect_language_rule(code: str) -> Detection:
+    """Deterministic detection — no API call."""
+    if re.search(r"{{.*?\b(ref|source|config)\s*\(", code, re.S):
+        return Detection("dbt", 1.0, "Contains dbt Jinja (ref/source/config).")
+    if re.search(r"\b(SparkSession|pyspark|spark\.)|def\s+transform\s*\(", code):
+        return Detection("spark", 1.0, "Uses the Spark / PySpark API.")
+    if re.search(r"\bSELECT\b", code, re.I):
+        return Detection("sql", 0.9, "Plain SQL with no Jinja templating.")
+    return Detection("unknown", 0.3, "No clear language signal.")
+
+
+def detect_language(code: str, client=None, provider: str = "anthropic") -> Detection:
+    if provider == "rule":
+        return detect_language_rule(code)
+
+    import anthropic
+
     client = client or anthropic.Anthropic()
     resp = client.messages.create(
         model=MODEL,

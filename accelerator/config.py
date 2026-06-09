@@ -63,6 +63,8 @@ class Settings:
     max_workers: int = field(default_factory=lambda: int(os.getenv("MAX_WORKERS", "2")))
     spark_version: str = field(default_factory=lambda: os.getenv("SPARK_VERSION", "15.4.x-scala2.12"))
     candidate_backend: str = field(default_factory=lambda: os.getenv("CANDIDATE_BACKEND", "local"))
+    # converter provider: "anthropic" (Claude) or "rule" (deterministic, no API spend)
+    converter_provider: str = field(default_factory=lambda: os.getenv("CONVERTER_PROVIDER", "anthropic"))
     anthropic_api_key: str = field(default_factory=lambda: os.getenv("ANTHROPIC_API_KEY", ""))
     github_repo: str = field(default_factory=lambda: os.getenv("GITHUB_REPO", ""))
     pr_base_branch: str = field(default_factory=lambda: os.getenv("PR_BASE_BRANCH", "main"))

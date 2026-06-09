@@ -13,7 +13,7 @@ import pytest
 
 from usecases.code_migration.config import EXAMPLES
 from usecases.code_migration.data import generate_mock_data
-from usecases.code_migration.pipeline import compare, reference_runner
+from usecases.code_migration.pipeline import compare, convert, detect, reference_runner
 
 
 def test_generate_and_load_sample():
@@ -50,6 +50,25 @@ def test_compare_match_and_mismatch():
 
     c = pd.DataFrame({"k": [1, 2], "v": [1.0, 9.9]})
     assert not compare.compare(a, c, float_tol=2).ok
+
+
+def test_rule_detect_classifies_examples():
+    assert detect.detect_language_rule(EXAMPLES["sql"].path.read_text()).language == "sql"
+    assert detect.detect_language_rule(EXAMPLES["dbt"].path.read_text()).language == "dbt"
+    assert detect.detect_language_rule(EXAMPLES["spark"].path.read_text()).language == "spark"
+
+
+def test_rule_convert_produces_valid_transform():
+    # sql + dbt -> a compilable module defining transform(spark) using spark.sql
+    for key, lang in (("sql", "sql"), ("dbt", "dbt")):
+        code = convert.convert_rule(EXAMPLES[key].path.read_text(), lang)
+        ns: dict = {}
+        exec(compile(code, "<converted>", "exec"), ns)   # must compile
+        assert callable(ns.get("transform"))
+        assert "spark.sql" in code and "{{" not in code  # jinja fully resolved
+    # spark -> pass-through, still defines transform
+    spark_code = convert.convert_rule(EXAMPLES["spark"].path.read_text(), "spark")
+    assert "def transform(spark)" in spark_code
 
 
 @pytest.mark.skipif(
