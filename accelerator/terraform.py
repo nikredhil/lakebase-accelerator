@@ -1,20 +1,16 @@
-"""Thin Python wrapper around the Terraform CLI.
-
-Each use case gets its own Terraform *workspace* (state), so infra is use-case
-specific and `destroy` only tears down that use case — never another's.
-"""
+"""Thin Terraform wrapper. Each use-case name gets its own workspace (isolated
+state), so destroy only tears down that use case. The tfvars path is supplied by
+the caller (typically living in the consuming tool's repo)."""
 from __future__ import annotations
 
+import os
 import subprocess
 from typing import Optional
 
-from accelerator.config import SETTINGS, TERRAFORM_DIR, UseCase
+from accelerator.config import SETTINGS, TERRAFORM_DIR
 
 
 def _env() -> dict:
-    """Terraform reads TF_VAR_* for provider auth + sizing (no secrets on CLI)."""
-    import os
-
     env = os.environ.copy()
     env.setdefault("TF_VAR_databricks_host", SETTINGS.databricks_host)
     env.setdefault("TF_VAR_databricks_token", SETTINGS.databricks_token)
@@ -27,53 +23,45 @@ def _env() -> dict:
 
 def _run(args: list[str], check: bool = True) -> subprocess.CompletedProcess:
     print(f"  $ terraform {' '.join(args)}")
-    return subprocess.run(
-        ["terraform", *args], cwd=TERRAFORM_DIR, env=_env(), check=check, text=True
-    )
+    return subprocess.run(["terraform", *args], cwd=TERRAFORM_DIR, env=_env(), check=check, text=True)
 
 
-def _select_workspace(usecase: str) -> None:
-    # Create-or-select a per-use-case workspace for isolated state.
-    res = subprocess.run(
-        ["terraform", "workspace", "select", usecase],
-        cwd=TERRAFORM_DIR, env=_env(), text=True, capture_output=True,
-    )
+def _select_workspace(name: str) -> None:
+    res = subprocess.run(["terraform", "workspace", "select", name],
+                         cwd=TERRAFORM_DIR, env=_env(), text=True, capture_output=True)
     if res.returncode != 0:
-        _run(["workspace", "new", usecase])
+        _run(["workspace", "new", name])
 
 
 def init() -> None:
     _run(["init", "-input=false"])
 
 
-def _var_args(uc: UseCase) -> list[str]:
-    return [f"-var-file={uc.tfvars}", "-input=false"]
+def _vars(name: str, vars_file: str) -> list[str]:
+    return [f"-var=usecase={name}", f"-var-file={vars_file}", "-input=false"]
 
 
-def plan(uc: UseCase) -> None:
-    init()
-    _select_workspace(uc.name)
-    _run(["validate"])
-    _run(["plan", *_var_args(uc)])
+def plan(name: str, vars_file: str) -> None:
+    init(); _select_workspace(name); _run(["validate"]); _run(["plan", *_vars(name, vars_file)])
 
 
-def apply(uc: UseCase) -> None:
-    init()
-    _select_workspace(uc.name)
-    _run(["apply", "-auto-approve", *_var_args(uc)])
+def apply(name: str, vars_file: str) -> None:
+    init(); _select_workspace(name); _run(["apply", "-auto-approve", *_vars(name, vars_file)])
 
 
-def destroy(uc: UseCase) -> None:
-    init()
-    _select_workspace(uc.name)
-    _run(["destroy", "-auto-approve", *_var_args(uc)])
+def destroy(name: str, vars_file: str) -> None:
+    init(); _select_workspace(name); _run(["destroy", "-auto-approve", *_vars(name, vars_file)])
 
 
-def output(name: str, uc: Optional[UseCase] = None) -> str:
-    if uc is not None:
-        _select_workspace(uc.name)
-    res = subprocess.run(
-        ["terraform", "output", "-raw", name],
-        cwd=TERRAFORM_DIR, env=_env(), text=True, capture_output=True,
-    )
+def output(name: str, key: str) -> str:
+    _select_workspace(name)
+    res = subprocess.run(["terraform", "output", "-raw", key],
+                         cwd=TERRAFORM_DIR, env=_env(), text=True, capture_output=True)
     return res.stdout.strip() if res.returncode == 0 else ""
+
+
+def list_workspaces() -> Optional[str]:
+    init()
+    res = subprocess.run(["terraform", "workspace", "list"],
+                         cwd=TERRAFORM_DIR, env=_env(), text=True, capture_output=True)
+    return res.stdout

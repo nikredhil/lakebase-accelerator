@@ -1,22 +1,4 @@
-# --- Core: Claude (code detection + conversion) ---
-anthropic>=0.69.0
-
-# --- Observability: MLflow run logging + tracing (to the Databricks workspace) ---
-mlflow>=2.14.0
-
-# --- Use-case pipeline: data + reference execution engine ---
-pandas>=2.0.0
-pyarrow>=14.0.0
-duckdb>=0.10.0          # lightweight reference engine for SQL / dbt (no JVM needed)
-jinja2>=3.1.0           # render dbt models (ref/source/config) to runnable SQL
-
-# --- Databricks execution (candidate run on your workspace) ---
-# Databricks Connect bundles its own pyspark and CONFLICTS with a local pyspark
-# install. Install it in a SEPARATE virtualenv when running the live Databricks
-# path. For local dry-run we use plain pyspark instead (see README).
-#   databricks-connect>=15.1.0
+# Lakebase accelerator — generic IaC control plane. Minimal deps by design.
 databricks-sdk>=0.30.0
-
-# --- Local Spark for dry-run only (do NOT install alongside databricks-connect) ---
-# pyspark>=3.5.0
 python-dotenv>=1.0.0
+# External tools (not pip): terraform >= 1.5, databricks CLI (for DAB).

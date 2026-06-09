@@ -1,86 +1,72 @@
-"""Accelerator control plane: the 'few function calls / one button' interface.
+"""Lakebase accelerator control plane — generic, use-case agnostic.
 
-    accelerator plan    <usecase>   # terraform validate + plan (no changes)
-    accelerator deploy  <usecase>   # terraform apply  + bundle deploy   (spin infra + assets)
-    accelerator destroy <usecase>   # bundle destroy   + terraform destroy (stops billing)
-    accelerator run     <usecase>   # run the use-case pipeline locally
-    accelerator list                # list registered use cases
+    lakebase plan    <name> --vars <tfvars> [--bundle <dir>]
+    lakebase deploy  <name> --vars <tfvars> [--bundle <dir>] [--target dev]
+    lakebase destroy <name> --vars <tfvars> [--bundle <dir>] [--target dev]
+    lakebase list
 
-Importable equivalents: accelerator.deploy("code_migration"), .destroy(...), .plan(...).
+A use case (e.g. the code-migration tool) supplies its own tfvars + bundle dir;
+the accelerator provisions/destroys the infra and injects the cluster id.
+
+Importable: accelerator.deploy(name, vars_file, bundle_dir=None), .destroy(...), .plan(...).
 """
 from __future__ import annotations
 
 import argparse
-import importlib
 import sys
 
 from accelerator import bundle, terraform
-from accelerator.config import USECASES, get_usecase
 
 
-def plan(usecase: str) -> None:
-    uc = get_usecase(usecase)
-    print(f"[plan] {uc.name}: {uc.description}")
-    terraform.plan(uc)
-    bundle.validate(uc)
+def plan(name: str, vars_file: str, bundle_dir: str | None = None, target: str = "dev") -> None:
+    print(f"[plan] {name}")
+    terraform.plan(name, vars_file)
+    if bundle_dir:
+        bundle.validate(bundle_dir, target)
     print("[plan] done — no infra changed.")
 
 
-def deploy(usecase: str) -> None:
-    uc = get_usecase(usecase)
-    print(f"[deploy] spinning infra + assets for {uc.name} ...")
-    terraform.apply(uc)
-    cluster_id = terraform.output("cluster_id", uc)
-    bundle.deploy(uc, cluster_id=cluster_id)
+def deploy(name: str, vars_file: str, bundle_dir: str | None = None, target: str = "dev") -> None:
+    print(f"[deploy] spinning infra for {name} ...")
+    terraform.apply(name, vars_file)
+    cluster_id = terraform.output(name, "cluster_id")
+    if bundle_dir:
+        bundle.deploy(bundle_dir, target, cluster_id=cluster_id)
     print(f"[deploy] done. cluster_id={cluster_id or '(n/a)'}")
-    print("[deploy] remember: `accelerator destroy %s` when finished to stop billing." % uc.name)
+    print(f"[deploy] run `lakebase destroy {name} --vars {vars_file}` when finished to stop billing.")
 
 
-def destroy(usecase: str) -> None:
-    uc = get_usecase(usecase)
-    print(f"[destroy] tearing down {uc.name} (stops billing) ...")
-    bundle.destroy(uc)       # assets first
-    terraform.destroy(uc)    # then infra
+def destroy(name: str, vars_file: str, bundle_dir: str | None = None, target: str = "dev") -> None:
+    print(f"[destroy] tearing down {name} (stops billing) ...")
+    if bundle_dir:
+        bundle.destroy(bundle_dir, target)
+    terraform.destroy(name, vars_file)
     print("[destroy] done.")
 
 
-def run(usecase: str, extra: list[str]) -> None:
-    """Invoke the use case's own pipeline entrypoint (usecases/<name>/run.py:main)."""
-    uc = get_usecase(usecase)
-    mod = importlib.import_module(f"usecases.{uc.name}.run")
-    mod.main(extra)
-
-
-def list_usecases() -> None:
-    for uc in USECASES.values():
-        print(f"  {uc.name:16s} {uc.description}")
-
-
 def build_parser() -> argparse.ArgumentParser:
-    p = argparse.ArgumentParser(prog="accelerator", description="Lakebase accelerator control plane")
+    p = argparse.ArgumentParser(prog="lakebase", description="Lakebase accelerator (generic IaC control plane)")
     sub = p.add_subparsers(dest="cmd", required=True)
     for cmd in ("plan", "deploy", "destroy"):
         sp = sub.add_parser(cmd)
-        sp.add_argument("usecase")
-    sp_run = sub.add_parser("run")
-    sp_run.add_argument("usecase")
-    sp_run.add_argument("extra", nargs=argparse.REMAINDER, help="args forwarded to the use-case pipeline")
+        sp.add_argument("name", help="use-case name (-> isolated Terraform workspace)")
+        sp.add_argument("--vars", required=True, help="path to the use case's .tfvars")
+        sp.add_argument("--bundle", default=None, help="path to the use case's DAB dir (optional)")
+        sp.add_argument("--target", default="dev", help="DAB target (default: dev)")
     sub.add_parser("list")
     return p
 
 
 def main(argv: list[str] | None = None) -> int:
     args = build_parser().parse_args(argv)
-    if args.cmd == "plan":
-        plan(args.usecase)
+    if args.cmd == "list":
+        print(terraform.list_workspaces() or "(no terraform state yet)")
+    elif args.cmd == "plan":
+        plan(args.name, args.vars, args.bundle, args.target)
     elif args.cmd == "deploy":
-        deploy(args.usecase)
+        deploy(args.name, args.vars, args.bundle, args.target)
     elif args.cmd == "destroy":
-        destroy(args.usecase)
-    elif args.cmd == "run":
-        run(args.usecase, args.extra)
-    elif args.cmd == "list":
-        list_usecases()
+        destroy(args.name, args.vars, args.bundle, args.target)
     return 0
 
 

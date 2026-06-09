@@ -1,7 +1,8 @@
-"""Central config + use-case registry for the accelerator.
+"""Config for the generic lakebase accelerator (infra control plane only).
 
-Everything reads from environment variables (loaded from .env). New use cases are
-added by appending to USECASES — the accelerator stays generic and reusable.
+The accelerator is use-case agnostic: callers pass a use-case *name* (→ an isolated
+Terraform workspace) plus a path to that use case's tfvars (and optionally a DAB
+bundle dir). No use case is hardcoded here.
 """
 from __future__ import annotations
 
@@ -13,46 +14,11 @@ try:
     from dotenv import load_dotenv
 
     load_dotenv()
-except Exception:  # python-dotenv optional at runtime
+except Exception:
     pass
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
 TERRAFORM_DIR = REPO_ROOT / "infra" / "terraform"
-BUNDLE_DIR = REPO_ROOT / "bundle"
-USECASES_DIR = REPO_ROOT / "usecases"
-SKILLS_FILE = REPO_ROOT / "SKILLS.md"
-
-
-@dataclass(frozen=True)
-class UseCase:
-    """One reusable accelerator use case (infra + assets + pipeline)."""
-
-    name: str
-    tfvars: str                      # var-file under infra/terraform/usecases/
-    bundle_target: str = "dev"       # DAB target
-    description: str = ""
-    dab_enabled: bool = True         # whether this use case deploys a bundle
-
-
-# --- Use-case registry (add new accelerator use cases here) ---
-USECASES: dict[str, UseCase] = {
-    "code_migration": UseCase(
-        name="code_migration",
-        tfvars="usecases/code_migration.tfvars",
-        bundle_target="dev",
-        description="Detect language, convert SQL/Spark/dbt -> Databricks PySpark, "
-        "validate by dual-run on a data sample, then raise a PR.",
-    ),
-}
-
-
-def get_usecase(name: str) -> UseCase:
-    if name not in USECASES:
-        raise KeyError(
-            f"Unknown use case {name!r}. Known: {', '.join(USECASES)}. "
-            f"Add it to accelerator/config.py:USECASES."
-        )
-    return USECASES[name]
 
 
 @dataclass(frozen=True)
@@ -62,16 +28,6 @@ class Settings:
     cloud: str = field(default_factory=lambda: os.getenv("CLOUD", "aws"))
     max_workers: int = field(default_factory=lambda: int(os.getenv("MAX_WORKERS", "2")))
     spark_version: str = field(default_factory=lambda: os.getenv("SPARK_VERSION", "15.4.x-scala2.12"))
-    candidate_backend: str = field(default_factory=lambda: os.getenv("CANDIDATE_BACKEND", "local"))
-    # converter provider: "rule" (deterministic) | "anthropic" (Claude API) | "databricks" (hosted Claude)
-    converter_provider: str = field(default_factory=lambda: os.getenv("CONVERTER_PROVIDER", "anthropic"))
-    anthropic_api_key: str = field(default_factory=lambda: os.getenv("ANTHROPIC_API_KEY", ""))
-    # observability (MLflow). Logs runs + traces to the workspace when host is set.
-    mlflow_enabled: bool = field(default_factory=lambda: os.getenv("MLFLOW_ENABLED", "true").lower() == "true")
-    mlflow_tracking_uri: str = field(default_factory=lambda: os.getenv("MLFLOW_TRACKING_URI", "databricks"))
-    mlflow_experiment: str = field(default_factory=lambda: os.getenv("MLFLOW_EXPERIMENT", ""))
-    github_repo: str = field(default_factory=lambda: os.getenv("GITHUB_REPO", ""))
-    pr_base_branch: str = field(default_factory=lambda: os.getenv("PR_BASE_BRANCH", "main"))
 
 
 SETTINGS = Settings()

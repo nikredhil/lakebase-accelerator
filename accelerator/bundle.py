@@ -1,15 +1,13 @@
-"""Thin Python wrapper around the Databricks CLI bundle (DAB) commands.
-
-Deploys/destroys the use-case *assets* (jobs, notebooks) onto the Terraform infra.
-The cluster id from Terraform is injected as a bundle variable so the job reuses
-the provisioned 1-2 node cluster.
-"""
+"""Thin Databricks Asset Bundle (DAB) wrapper. The bundle dir is supplied by the
+caller (it lives in the consuming tool's repo); the accelerator just runs the CLI
+against it and injects the Terraform cluster id."""
 from __future__ import annotations
 
+import os
 import shutil
 import subprocess
 
-from accelerator.config import BUNDLE_DIR, SETTINGS, UseCase
+from accelerator.config import SETTINGS
 
 
 def _available() -> bool:
@@ -17,35 +15,33 @@ def _available() -> bool:
 
 
 def _env() -> dict:
-    import os
-
     env = os.environ.copy()
     env.setdefault("DATABRICKS_HOST", SETTINGS.databricks_host)
     env.setdefault("DATABRICKS_TOKEN", SETTINGS.databricks_token)
     return env
 
 
-def _run(args: list[str], cluster_id: str = "") -> None:
+def _run(args: list[str], bundle_dir: str, cluster_id: str = "") -> None:
     if not _available():
         print("  ! databricks CLI not found — skipping bundle step. "
               "Install: https://docs.databricks.com/en/dev-tools/cli/install.html")
         return
     if cluster_id:
         args = [*args, "--var", f"existing_cluster_id={cluster_id}"]
-    print(f"  $ databricks {' '.join(args)}")
-    subprocess.run(["databricks", *args], cwd=BUNDLE_DIR, env=_env(), check=True, text=True)
+    print(f"  $ (cd {bundle_dir}) databricks {' '.join(args)}")
+    subprocess.run(["databricks", *args], cwd=bundle_dir, env=_env(), check=True, text=True)
 
 
-def validate(uc: UseCase) -> None:
-    if uc.dab_enabled:
-        _run(["bundle", "validate", "-t", uc.bundle_target])
+def validate(bundle_dir: str, target: str = "dev") -> None:
+    if bundle_dir:
+        _run(["bundle", "validate", "-t", target], bundle_dir)
 
 
-def deploy(uc: UseCase, cluster_id: str = "") -> None:
-    if uc.dab_enabled:
-        _run(["bundle", "deploy", "-t", uc.bundle_target], cluster_id=cluster_id)
+def deploy(bundle_dir: str, target: str = "dev", cluster_id: str = "") -> None:
+    if bundle_dir:
+        _run(["bundle", "deploy", "-t", target], bundle_dir, cluster_id=cluster_id)
 
 
-def destroy(uc: UseCase) -> None:
-    if uc.dab_enabled:
-        _run(["bundle", "destroy", "-t", uc.bundle_target, "--auto-approve"])
+def destroy(bundle_dir: str, target: str = "dev") -> None:
+    if bundle_dir:
+        _run(["bundle", "destroy", "-t", target, "--auto-approve"], bundle_dir)
