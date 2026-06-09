@@ -1,0 +1,34 @@
+# Lakebase Accelerator — DAB bundle definition.
+#
+# This is the top-level bundle that syncs the accelerator code + notebook to
+# a Databricks workspace.  The actual cluster resources are generated per-use-case
+# by accelerator/dab.py into .lakebase/<usecase>/databricks.yml.
+#
+# Usage:
+#   databricks bundle deploy -t dev    # push notebook + source to workspace
+#   lakebase deploy <name>             # provision use-case infra (cluster, schema)
+
+bundle:
+  name: lakebase-accelerator
+
+sync:
+  include:
+    - "accelerator/**/*.py"
+    - "notebooks/**"
+    - "usecases/**"
+
+targets:
+  dev:
+    default: true
+    mode: development
+    workspace:
+      root_path: /Workspace/Users/${workspace.current_user.userName}/.bundle/${bundle.name}/${bundle.target}
+
+  staging:
+    workspace:
+      root_path: /Workspace/Shared/.bundle/${bundle.name}/staging
+
+  prod:
+    mode: production
+    workspace:
+      root_path: /Workspace/Shared/.bundle/${bundle.name}/prod

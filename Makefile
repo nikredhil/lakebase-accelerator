@@ -1,24 +1,40 @@
-.PHONY: install plan deploy destroy list help
+.PHONY: install plan deploy destroy status list test test-e2e help
 PY ?= python3
-# Pass a use case: make deploy NAME=code_migration VARS=/path/to.tfvars BUNDLE=/path/to/bundle
 NAME   ?= example
-VARS   ?= infra/terraform/usecases/example.tfvars
-BUNDLE ?=
+TARGET ?= dev
+VARS   ?=
+TAGS   ?=
 
 install:
 	$(PY) -m pip install -r requirements.txt
 
 plan:
-	$(PY) -m accelerator.cli plan $(NAME) --vars $(VARS) $(if $(BUNDLE),--bundle $(BUNDLE),)
+	$(PY) -m accelerator.cli plan $(NAME) --target $(TARGET) $(if $(VARS),--vars-file $(VARS),) $(if $(TAGS),--tags $(TAGS),)
 
 deploy:
-	$(PY) -m accelerator.cli deploy $(NAME) --vars $(VARS) $(if $(BUNDLE),--bundle $(BUNDLE),)
+	$(PY) -m accelerator.cli deploy $(NAME) --target $(TARGET) $(if $(VARS),--vars-file $(VARS),) $(if $(TAGS),--tags $(TAGS),)
 
 destroy:
-	$(PY) -m accelerator.cli destroy $(NAME) --vars $(VARS) $(if $(BUNDLE),--bundle $(BUNDLE),)
+	$(PY) -m accelerator.cli destroy $(NAME) --target $(TARGET)
+
+status:
+	$(PY) -m accelerator.cli status $(NAME) --target $(TARGET)
 
 list:
 	$(PY) -m accelerator.cli list
 
+test:
+	$(PY) -m pytest tests/ -v --ignore=tests/test_e2e.py
+
+test-e2e:
+	$(PY) -m pytest tests/test_e2e.py -v --e2e
+
 help:
-	@grep -E '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) | awk 'BEGIN{FS=":.*?## "};{printf "  %-10s %s\n",$$1,$$2}'
+	@echo "  install   Install Python dependencies"
+	@echo "  plan      Validate use-case bundle (NAME=x [VARS=f.json] [TAGS=k=v])"
+	@echo "  deploy    Deploy use-case infra (NAME=x [VARS=f.json] [TAGS=k=v])"
+	@echo "  destroy   Tear down use-case infra (NAME=x)"
+	@echo "  status    Show use-case deployment status (NAME=x)"
+	@echo "  list      List all deployed use cases"
+	@echo "  test      Run unit tests"
+	@echo "  test-e2e  Run end-to-end tests (needs DATABRICKS_HOST/TOKEN)"

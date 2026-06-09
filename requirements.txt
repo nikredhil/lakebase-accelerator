@@ -1,4 +1,7 @@
-# Lakebase accelerator — generic IaC control plane. Minimal deps by design.
+# Lakebase accelerator — DAB-based IaC control plane.
 databricks-sdk>=0.30.0
 python-dotenv>=1.0.0
-# External tools (not pip): terraform >= 1.5, databricks CLI (for DAB).
+pyyaml>=6.0
+# Dev
+pytest>=7.0.0
+# External tool (not pip): databricks CLI >= 0.200

@@ -1,52 +1,70 @@
 # Lakebase Accelerator
 
-A **reusable, use-case-agnostic Databricks infra-as-code control plane**. One
-command spins up the infra behind a use case; one tears it down to stop billing.
-It owns *infrastructure only* — consuming tools (e.g. the **code-migration-tool**)
-plug in by supplying their own `tfvars` and (optional) Databricks Asset Bundle.
+A **reusable, use-case-agnostic Databricks infra-as-code control plane** built on
+Databricks Asset Bundles (DAB). One command spins up the infra behind a use case;
+one tears it down to stop billing. Deploy multiple use cases simultaneously, each
+with its own isolated resources and custom tags.
 
 ```
-                ┌──────────── lakebase accelerator (this repo) ────────────┐
-  your tool ──► │  lakebase plan|deploy|destroy <name> --vars <tfvars>      │
-  (tfvars +     │     Terraform (cluster, schema)  +  DAB (your bundle)     │
-   bundle)      └──────────────────────────────────────────────────────────┘
+                ┌──────────── lakebase accelerator ──────────────┐
+  your tool ──► │  lakebase deploy <name> [--var k=v] [--tags ..]│
+  (or notebook) │     DAB (cluster, schema, assets)              │
+                └────────────────────────────────────────────────┘
 ```
 
 ## What it provisions
-A small, cost-tuned cluster (per-cloud default node type, autoscale **1–2 nodes**,
+A small, cost-tuned cluster (per-cloud default node type, autoscale **1-2 nodes**,
 **spot/preemptible** workers with on-demand fallback, **single-node** option, idle
-**autotermination**) in an isolated **Terraform workspace per use-case name**, so
-`destroy` only removes that use case. Optionally deploys a use case's DAB bundle
-and injects the cluster id.
+**autotermination**) in an isolated DAB deployment per use-case name. Optionally
+creates a Unity Catalog schema. `destroy` only removes that use case.
 
-## Use
+## Quick start
 ```bash
-cp .env.example .env        # DATABRICKS_HOST/TOKEN, CLOUD, MAX_WORKERS
-make install                # databricks-sdk + python-dotenv  (also need: terraform, databricks CLI)
+cp .env.example .env        # DATABRICKS_HOST/TOKEN, CLOUD, etc.
+make install                # databricks-sdk, pyyaml, python-dotenv (also need: databricks CLI)
 
-# point it at a use case's tfvars (which lives in that tool's repo)
-lakebase plan    code_migration --vars /path/to/tool/deploy/code_migration.tfvars
-lakebase deploy  code_migration --vars /path/to/tool/deploy/code_migration.tfvars --bundle /path/to/tool/deploy/bundle
-lakebase destroy code_migration --vars /path/to/tool/deploy/code_migration.tfvars   # stops billing
-lakebase list                # terraform workspaces (active use cases)
+lakebase deploy  code_migration                                     # deploy with env defaults
+lakebase deploy  code_migration --vars-file usecases/example.json   # deploy with overrides
+lakebase deploy  etl_pipeline --var cloud=aws --tags team=data      # second use case
+lakebase status  code_migration                                     # check cluster state
+lakebase list                                                       # all active deployments
+lakebase destroy code_migration                                     # stops billing
 ```
-(`lakebase` = `python -m accelerator.cli`; also importable: `from accelerator import deploy, destroy, plan`.)
+(`lakebase` = `python -m accelerator.cli`; also importable: `from accelerator import deploy, destroy, plan, status`.)
 
-## Cost knobs (set in the tfvars the caller passes)
-`use_spot` (spot workers, ~60–90% off; driver on-demand) · `single_node` (driver
-only, cheapest) · `max_workers` (≤2) · `autotermination_minutes` · `node_type_id`
-· `cloud` (aws/azure/gcp default node type). See `infra/terraform/usecases/example.tfvars`.
+## Notebook UI
+Open `notebooks/lakebase_control_panel.py` in your Databricks workspace. It provides
+widget-based controls to deploy, destroy, and monitor use cases without touching the CLI.
+
+## Cost knobs
+`use_spot` (spot workers, ~60-90% off; driver on-demand) | `single_node` (driver
+only, cheapest) | `max_workers` (<=2) | `autotermination_minutes` | `node_type_id`
+| `cloud` (aws/azure/gcp default node type). Set via `--var`, `--vars-file`, or env vars.
+
+## Custom tags
+```bash
+lakebase deploy myuc --tags team=data-eng,cost_center=1234
+# or via env: LAKEBASE_CUSTOM_TAGS="team=data-eng,cost_center=1234"
+# or in vars-file JSON: {"custom_tags": {"team": "data-eng"}}
+```
+Base tags (`project`, `usecase`, `managed`) are always applied.
 
 ## Layout
 ```
-accelerator/      cli.py (plan/deploy/destroy/list) · terraform.py · bundle.py · config.py
-infra/terraform/  generic parametrized cluster + UC schema; usecases/example.tfvars
+accelerator/        cli.py · dab.py · config.py
+notebooks/          lakebase_control_panel.py (Databricks UI)
+usecases/           example.json (variable override template)
+databricks.yml      top-level DAB bundle (syncs code + notebook to workspace)
+tests/              unit + e2e tests
 ```
 
 ## Integrating a new use case
-1. In your tool's repo, add a `*.tfvars` (copy `example.tfvars`) and, if you deploy
-   assets, a DAB `bundle/`.
-2. `lakebase deploy <name> --vars <your.tfvars> [--bundle <your/bundle>]`.
-3. `lakebase destroy <name> --vars <your.tfvars>` when done.
+1. `lakebase deploy <name>` — uses env defaults, or pass `--vars-file` / `--var` overrides.
+2. `lakebase destroy <name>` when done — stops billing.
+3. Multiple use cases can be deployed simultaneously.
 
-No use case is hardcoded here — that's the point.
+## Testing
+```bash
+make test           # unit tests (no credentials needed)
+make test-e2e       # full deploy/destroy lifecycle (needs DATABRICKS_HOST/TOKEN)
+```

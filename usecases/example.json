@@ -1,0 +1,13 @@
+{
+  "cloud": "azure",
+  "spark_version": "15.4.x-scala2.12",
+  "min_workers": 1,
+  "max_workers": 2,
+  "use_spot": true,
+  "single_node": false,
+  "autotermination_minutes": 15,
+  "custom_tags": {
+    "team": "data-eng",
+    "cost_center": "12345"
+  }
+}

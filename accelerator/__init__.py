@@ -1,17 +1,37 @@
-"""Lakebase accelerator: reusable, use-case-specific Databricks infra-as-code.
+"""Lakebase Accelerator — reusable, use-case-agnostic Databricks IaC control plane.
 
-Spin infra + assets up and tear them down with a few function calls:
+Provisions cost-tuned Databricks clusters (spot workers, autoscale 1-2 nodes,
+autotermination) via Databricks Asset Bundles.  Each use case gets its own
+isolated deployment — no hardcoded use cases here.
 
-    from accelerator import deploy, destroy, plan
-    deploy("code_migration")   # terraform apply + bundle deploy
-    destroy("code_migration")  # bundle destroy + terraform destroy  (stops billing)
+Quick start::
+
+    from accelerator import plan, deploy, destroy, status
+
+    deploy("code_migration")
+    destroy("code_migration")
+
+CLI::
+
+    lakebase plan    <name> [--target dev] [--var k=v] [--tags k=v]
+    lakebase deploy  <name> [--target dev] [--var k=v] [--tags k=v]
+    lakebase destroy <name>
+    lakebase status  <name>
+    lakebase list
+
+Submodules:
+    cli     — argparse CLI + importable plan/deploy/destroy/status functions
+    config  — Settings dataclass (from env/.env), path constants
+    dab     — DAB wrapper: renders per-use-case databricks.yml, runs bundle CLI
 """
-__all__ = ["deploy", "destroy", "plan"]
+
+__version__ = "0.3.0"
+
+__all__ = ["deploy", "destroy", "plan", "status", "__version__"]
 
 
 def __getattr__(name):
-    # Lazy import so `python -m accelerator.cli` doesn't re-import cli via the package.
-    if name in __all__:
+    if name in ("deploy", "destroy", "plan", "status"):
         from accelerator import cli
 
         return getattr(cli, name)

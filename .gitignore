@@ -9,24 +9,18 @@ venv/
 *.egg-info/
 .pytest_cache/
 
-# generated data + run artifacts
-usecases/*/data/raw/
-usecases/*/data/sample/
-usecases/code_migration/converted/
-.runs/
-*.parquet
-
-# terraform
-infra/terraform/.terraform/
-infra/terraform/*.tfstate
-infra/terraform/*.tfstate.*
-infra/terraform/.terraform.lock.hcl
-infra/terraform/terraform.tfstate.d/
-crash.log
+# lakebase workspaces (generated per-use-case bundle state)
+.lakebase/
 
 # databricks asset bundle
 .databricks/
 bundle/.databricks/
+
+# generated data + run artifacts
+usecases/*/data/raw/
+usecases/*/data/sample/
+.runs/
+*.parquet
 
 # spark
 metastore_db/
