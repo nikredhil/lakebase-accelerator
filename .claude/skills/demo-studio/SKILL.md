@@ -27,6 +27,13 @@ plane and agent app need creds and live infra).
 
 ## Stage 1 — Write the narration script
 
+**Skip this stage if an approved `script.json` already exists** — from the
+`video-script` skill or the `demo` pipeline skill (same format). When writing
+a script here, first read `../video-script/references/hooks.md` (hook rules:
+short statement with a number, no question openers) and
+`../video-script/references/manuka-voice.md` (Manuka positioning, practitioner
+tone, soft engagement CTA — applies to all content, always).
+
 Write `script.json`:
 
 ```json
@@ -104,6 +111,23 @@ respellings that still read fine in captions, since the same text feeds both
    `node capture.mjs <scratch>/audio/timeline.json <scratch>/video`.
 4. Watch for "ran longer than its slot" warnings — re-time or trim actions and
    re-run. Capture is cheap once the app is up.
+5. **Footage QA (required — do not assemble unverified footage).** Extract
+   sample frames from the capture and LOOK at them (Read the PNGs):
+
+   ```bash
+   for t in 2 <mid> <late>; do ffmpeg -y -loglevel error -ss $t -i capture.webm -frames:v 1 frame-$t.png; done
+   ```
+
+   At minimum: the first seconds, one frame inside each key beat, and the
+   close. Check for anything the narration doesn't expect: onboarding/tour
+   popups, cookie banners, vendor watermarks (e.g. "Edit with …" badges),
+   toasts, blank or half-loaded pages, wrong page for the beat. First-visit
+   popups are the classic trap — a fresh Playwright profile has empty
+   localStorage, so overlays suppressed in your normal browser WILL appear.
+   Fix at the source when the app is ours (remove the trigger in the app
+   code); hide via injected CSS in capture.mjs only for third-party cosmetic
+   chrome. A capture with a defect on screen is a failed take — fix and
+   re-film; never ship it because the narration "mostly covers it".
 
 ## Stage 4 — Assemble
 

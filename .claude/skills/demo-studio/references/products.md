@@ -17,6 +17,7 @@ industry showcase demos built on the platform.
 | `energy-sustainability-esg/` | ESG Reporting Factory | FastAPI + prebuilt SPA in `ui/dist`, uvicorn, `DEMO_MODE=true` | AI report generation, compliance validation, lineage |
 | `fence-sitter-finder-app/` | "VaccineIQ" pharma HCP fence-sitter intelligence | FastAPI serving prerendered static bundle, **zero data deps** | Fence-sitter scoring, next-best actions, customer 360, patient activation |
 | `manuka-ai-obs-commandcenter-app/` | AI Observability Command Center | React 19 + FastAPI (needs SQL Warehouse for live data) | 11 pages: tool inventory, token intelligence, FinOps chargeback, compliance, streaming Genie SQL assistant — richest demo |
+| `td-ai-operating-layer-app/` | "TD AI Operating Layer" — Layer 6 AI estate/trust/FinOps operating layer for a bank (Manuka-branded) | FastAPI serving a prerendered static build (self-extracting tarball), `uvicorn main:app` :8000, **zero data deps** | 13 routes: exec overview ($1.55M net AI value/mo), 187-system Unity Catalog estate, medallion trace observability (14.9M events/day), Trustworthy AI control tower, FinOps + token economics, Genie root-cause flow, evals A/B + lineage |
 
 Easiest to capture locally with no credentials: `digital-twin-poc-app`,
 `energy-field-ops`, `fence-sitter-finder-app` (mock/static data).
