@@ -1,0 +1,97 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Lakebase Agent Backbone</title>
+<link rel="stylesheet" href="/static/style.css">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='7' fill='%23FF3621'/%3E%3Cpath d='M16 7l8 4.5-8 4.5-8-4.5L16 7zm-8 8l8 4.5 8-4.5v3L16 23l-8-4.5v-3z' fill='%23fff'/%3E%3C/svg%3E">
+</head>
+<body>
+
+<header class="topbar">
+  <div class="brand">
+    <svg class="logo" viewBox="0 0 32 32" aria-hidden="true">
+      <rect width="32" height="32" rx="7" fill="#FF3621"/>
+      <path d="M16 7l8 4.5-8 4.5-8-4.5L16 7zm-8 8l8 4.5 8-4.5v3L16 23l-8-4.5v-3z" fill="#fff"/>
+    </svg>
+    <div>
+      <h1>Lakebase Agent Backbone</h1>
+      <p class="tagline">Stateful agent &mdash; memory in governed Postgres, eval-ready by design</p>
+    </div>
+  </div>
+  <div class="session">
+    <span id="user-chip" class="chip" hidden></span>
+    <span id="host-chip" class="chip chip-host"></span>
+  </div>
+</header>
+
+<div class="ribbon"></div>
+
+<main class="agent-view">
+  <div class="agent-grid">
+    <aside class="card agent-side">
+      <h2>Backbone</h2>
+      <p class="hint">Pick a Lakebase instance deployed by the control plane. Memory and every turn live in its <code>agent.*</code> schema.</p>
+
+      <label class="field">
+        <span>Instance</span>
+        <select id="ag-instance"></select>
+      </label>
+      <label class="field">
+        <span>Model</span>
+        <select id="ag-model"></select>
+      </label>
+      <button class="btn btn-ghost" id="ag-setup-btn" title="Create the agent.* memory + eval tables on this instance">Apply schema</button>
+
+      <div class="ag-cost" id="ag-cost" hidden></div>
+
+      <div class="ag-threads-head">
+        <span>Threads</span>
+        <button class="btn btn-ghost btn-xs" id="ag-new-thread">+ New</button>
+      </div>
+      <div id="ag-threads"></div>
+    </aside>
+
+    <div class="card agent-main">
+      <div class="ag-chat-head">
+        <span id="ag-thread-label">New conversation</span>
+        <div class="ag-chat-actions">
+          <button class="btn btn-ghost btn-xs" id="ag-branch-btn" title="Clone this thread's memory to a new branch for A/B">&#9095; Branch &amp; A/B</button>
+        </div>
+      </div>
+      <div id="ag-messages" class="ag-messages">
+        <div class="ag-empty">
+          <p>Start a conversation — the agent recalls memory from Lakebase and persists every turn.</p>
+          <p class="hint">Resume a thread to see the checkpointer rehydrate state; branch to test a different model on an isolated copy.</p>
+        </div>
+      </div>
+      <form id="ag-form" class="ag-input" autocomplete="off">
+        <input id="ag-text" type="text" placeholder="Message the agent…" autocomplete="off">
+        <button class="btn btn-primary" id="ag-send" type="submit">Send</button>
+      </form>
+    </div>
+  </div>
+</main>
+
+<!-- Branch & A/B -->
+<div id="branch-modal" class="modal-backdrop" hidden>
+  <div class="modal">
+    <h3>Branch this thread</h3>
+    <p>Clone the thread's memory to an isolated branch so you can re-run it with a different model or prompt side-by-side — copy-on-write eval sandboxing, the Lakebase way.</p>
+    <label class="field">
+      <span>New branch name</span>
+      <input id="branch-name" type="text" placeholder="e.g. exp-haiku" value="exp">
+    </label>
+    <div class="modal-actions">
+      <button class="btn btn-ghost" id="branch-cancel">Cancel</button>
+      <button class="btn btn-primary" id="branch-confirm">Branch</button>
+    </div>
+  </div>
+</div>
+
+<div id="toasts"></div>
+
+<script src="/static/app.js"></script>
+</body>
+</html>

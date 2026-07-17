@@ -1,0 +1,43 @@
+%% Lakebase Accelerator — TARGET architecture (red/white Databricks scheme)
+%% Mirrors docs/design-spec.md §7 and the Lucid diagram.
+%% Renders on GitHub, VS Code (Mermaid ext), mermaid.live, and Lucid's Mermaid import.
+flowchart LR
+  classDef red fill:#FF3621,stroke:#E0301B,color:#FFFFFF,font-weight:bold
+  classDef soft fill:#FFE9E6,stroke:#FF3621,color:#1B3139
+  classDef blue fill:#EDF5FF,stroke:#6DB1FF,color:#1B3139
+  classDef paper fill:#FFFFFF,stroke:#1B3139,color:#1B3139
+  classDef dim fill:#F4F1EF,stroke:#5A6F77,color:#1B3139
+
+  user(("👤 User<br/>browser")):::paper
+
+  subgraph cp["Control plane — accelerator"]
+    iface["Interfaces<br/>CLI · Notebook · App UI"]:::soft
+    prov["Provisioner<br/>defaults + inference"]:::red
+    mig["Schema migrator<br/>modules + ledger"]:::red
+    iface --> prov --> mig
+  end
+
+  subgraph ws["☁️ Databricks workspace"]
+    sdk["databricks-sdk<br/>Database + Compute APIs"]:::soft
+    serving["Model Serving<br/>embeddings / extraction"]:::paper
+    delta[("Delta / lakehouse<br/>source of record")]:::dim
+    job["Ingestion job (optional cluster)<br/>extract → chunk → embed"]:::dim
+
+    subgraph dp["Data plane"]
+      lb[("<b>Lakebase instance</b><br/>lakebase-&lt;usecase&gt; · ≤2 CU · PG16<br/>schemas: core · app · docs")]:::soft
+      vol[["Unity Catalog Volume<br/>large blobs (PDF, image, audio)"]]:::blue
+    end
+  end
+
+  clients["Postgres clients<br/>apps · BI tools · :5432"]:::paper
+
+  user -- operate --> iface
+  prov -- "create / lookup" --> sdk
+  sdk -- "provision instance" --> lb
+  mig -- "OAuth + DDL" --> lb
+  job -- "chunks + vectors" --> lb
+  job -- embeddings --> serving
+  delta -- "sync (reverse ETL)" --> lb
+  job -- "large files" --> vol
+  lb -. "source_uri pointer" .-> vol
+  lb -- "SQL · sslmode=require" --> clients

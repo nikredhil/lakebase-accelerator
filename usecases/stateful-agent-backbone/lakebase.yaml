@@ -1,0 +1,17 @@
+# Stateful Agent Backbone — Lakebase use-case manifest (see docs/design-spec.md §9).
+# Provision with:  lakebase up agent-backbone --manifest usecases/stateful-agent-backbone/lakebase.yaml
+name: agent-backbone
+profile: standard            # CU_1, 7-day restore. Use `prod` for CU_2 + RLS in production.
+
+schema:
+  modules: [core, agent]     # meta + core always applied; `agent` adds memory + eval tables
+  multi_tenant: true         # per-tenant isolation for a shared agent platform
+
+unstructured:
+  enabled: true              # agent.memories uses pgvector for semantic recall
+  embedding_model: databricks-bge-large-en
+  embedding_dim: 1024        # must match agent.memories.embedding vector(1024)
+
+tags:
+  team: ml-platform
+  use_case: stateful-agent-backbone
