@@ -1,0 +1,175 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>TwinOS Lakebase Deployer</title>
+<link rel="stylesheet" href="/static/style.css">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='7' fill='%23FF3621'/%3E%3Cpath d='M16 7l8 4.5-8 4.5-8-4.5L16 7zm-8 8l8 4.5 8-4.5v3L16 23l-8-4.5v-3z' fill='%23fff'/%3E%3C/svg%3E">
+</head>
+<body>
+
+<header class="topbar">
+  <div class="brand">
+    <div>
+      <h1>TwinOS Lakebase Deployer</h1>
+      <p class="tagline">Lakebase control plane &mdash; one click up, one click down</p>
+    </div>
+  </div>
+  <div class="session">
+    <span id="user-chip" class="chip" hidden></span>
+    <span id="host-chip" class="chip chip-host"></span>
+  </div>
+</header>
+
+<div class="ribbon"></div>
+
+<nav class="subnav">
+  <div class="seg subnav-seg" id="subnav">
+    <button type="button" class="seg-opt selected" data-view="deploy"><b>Deploy</b></button>
+    <button type="button" class="seg-opt" data-view="costs"><b>Cost center</b></button>
+  </div>
+  <a id="agent-app-link" class="btn btn-ghost btn-xs" href="#" target="_blank" rel="noopener" hidden>Open Agent Backbone &#8599;</a>
+</nav>
+
+<main class="layout" id="view-deploy">
+
+  <!-- ── Blueprint (flagship use case) ────────────────────────── -->
+  <section class="card blueprint-card" id="blueprint-card" hidden>
+    <button type="button" class="dep-head bp-head" id="bp-toggle">
+      <svg class="chev" viewBox="0 0 16 16" width="12" height="12" aria-hidden="true">
+        <path d="M6 4l4 4-4 4" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+      </svg>
+      <span class="bp-title">
+        <span class="badge">Flagship blueprint</span>
+        <span id="bp-name">Stateful Agent Backbone</span>
+      </span>
+      <span class="bp-tagline" id="bp-tagline"></span>
+    </button>
+    <div class="bp-detail" id="bp-detail" hidden></div>
+  </section>
+
+  <!-- ── Deploy form ─────────────────────────────────────────── -->
+  <section class="card form-card">
+    <h2>Deploy a Lakebase database</h2>
+    <p class="hint">Spins up an isolated Postgres (Lakebase) instance tagged to this use case.</p>
+
+    <form id="deploy-form" autocomplete="off">
+      <label class="field">
+        <span>Use-case name</span>
+        <input id="f-usecase" type="text" placeholder="e.g. code-migration" required
+               pattern="[a-zA-Z0-9][a-zA-Z0-9_\-]{0,30}"
+               title="Letters, digits, - or _ (max 31 chars)">
+        <small class="field-note">instance will be named <code id="name-preview">lakebase-&hellip;</code></small>
+      </label>
+
+      <label class="field">
+        <span>Size</span>
+        <div class="seg" id="f-capacity">
+          <button type="button" class="seg-opt selected" data-cap="CU_1">
+            <b>1 CU</b><small>cheapest</small>
+          </button>
+          <button type="button" class="seg-opt" data-cap="CU_2">
+            <b>2 CU</b><small>more throughput</small>
+          </button>
+        </div>
+      </label>
+
+      <details class="advanced">
+        <summary>Advanced</summary>
+        <label class="field">
+          <span>Restore window (days)</span>
+          <input id="f-retention" type="number" min="2" max="35" placeholder="workspace default">
+        </label>
+        <label class="field">
+          <span>Custom tags</span>
+          <input id="f-tags" type="text" placeholder="team=data-eng, cost_center=1234">
+        </label>
+      </details>
+
+      <button id="deploy-btn" class="btn btn-primary" type="submit">
+        <span class="btn-label">Deploy</span>
+        <span class="spinner" hidden></span>
+      </button>
+
+      <div class="guardrails">
+        <span class="badge">&le; 2 CU</span>
+        <span class="badge">stoppable</span>
+        <span class="badge">tagged &amp; isolated</span>
+      </div>
+      <p class="cost-note">Instances bill while running &mdash; stop or destroy them when you're done.</p>
+    </form>
+  </section>
+
+  <!-- ── Deployments ─────────────────────────────────────────── -->
+  <section class="deployments">
+    <div class="deployments-head">
+      <h2>Active deployments</h2>
+      <button id="refresh-btn" class="btn btn-ghost" title="Refresh">
+        <svg viewBox="0 0 16 16" width="14" height="14"><path fill="currentColor" d="M13.65 2.35A8 8 0 1 0 16 8h-2a6 6 0 1 1-1.76-4.24L10 6h6V0l-2.35 2.35z"/></svg>
+        Refresh
+      </button>
+    </div>
+    <p class="hint">Click a deployment to see details and manage it &mdash; start, stop, or destroy.</p>
+    <div id="deployments-list"></div>
+    <div id="empty-state" class="empty" hidden>
+      <svg viewBox="0 0 32 32" width="48" height="48" aria-hidden="true">
+        <path d="M16 5l10 5.5L16 16 6 10.5 16 5zm-10 11l10 5.5 10-5.5v4L16 26 6 20v-4z" fill="#F2C4BC"/>
+      </svg>
+      <p>No databases deployed yet.</p>
+      <p class="hint">Deploy one on the left &mdash; stop or destroy it when you're done to stop billing.</p>
+    </div>
+  </section>
+</main>
+
+<!-- ══ Cost center view ════════════════════════════════════════ -->
+<section class="costs-view" id="view-costs" hidden>
+  <div class="costs-head">
+    <div>
+      <h2>Cost center</h2>
+      <p class="hint">DBU&rarr;$ across the agent, the app, and Lakebase — and what that saves vs a DIY stack.</p>
+    </div>
+    <div class="costs-controls">
+      <span class="badge" id="cost-source">—</span>
+      <select id="cost-days">
+        <option value="7">last 7 days</option>
+        <option value="30" selected>last 30 days</option>
+        <option value="90">last 90 days</option>
+      </select>
+      <button id="cost-refresh" class="btn btn-ghost btn-xs">Refresh</button>
+    </div>
+  </div>
+
+  <div id="cost-note" class="cost-banner" hidden></div>
+
+  <div class="cost-buckets" id="cost-buckets"></div>
+
+  <div class="cost-row">
+    <div class="card cost-savings" id="savings-card"></div>
+    <div class="card cost-projection" id="projection-card"></div>
+  </div>
+
+  <div class="card cost-breakdown">
+    <h3>Granular breakdown</h3>
+    <p class="hint">By cost center, use case, bucket, and day.</p>
+    <div id="cost-table"></div>
+  </div>
+</section>
+
+<!-- Destroy confirmation -->
+<div id="modal" class="modal-backdrop" hidden>
+  <div class="modal">
+    <h3>Destroy <span id="modal-usecase"></span>?</h3>
+    <p>This permanently deletes the database instance <b>and its data</b>. Billing for this use case stops. If you just want to pause billing, use Stop instead.</p>
+    <div class="modal-actions">
+      <button class="btn btn-ghost" id="modal-cancel">Cancel</button>
+      <button class="btn btn-danger" id="modal-confirm">Destroy</button>
+    </div>
+  </div>
+</div>
+
+<div id="toasts"></div>
+
+<script src="/static/app.js?v=4"></script>
+</body>
+</html>

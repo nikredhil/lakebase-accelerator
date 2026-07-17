@@ -26,7 +26,7 @@ class TestResolveNodeType:
         assert _resolve_node_type("aws", "") == "m5d.large"
 
     def test_azure_default(self):
-        assert _resolve_node_type("azure", "") == "Standard_DS3_v2"
+        assert _resolve_node_type("azure", "") == "Standard_D4s_v3"
 
     def test_gcp_default(self):
         assert _resolve_node_type("gcp", "") == "n2-standard-4"
@@ -66,7 +66,7 @@ class TestBuildCluster:
         c = _build_cluster_resource("myuc", self._settings())
         assert c["cluster_name"] == "lakebase-myuc-cluster"
         assert c["data_security_mode"] == "SINGLE_USER"
-        assert c["node_type_id"] == "Standard_DS3_v2"
+        assert c["node_type_id"] == "Standard_D4s_v3"
         assert c["custom_tags"]["usecase"] == "myuc"
         assert c["custom_tags"]["project"] == "lakebase-accelerator"
         assert c["custom_tags"]["managed"] == "dab"

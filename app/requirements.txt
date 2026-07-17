@@ -1,0 +1,6 @@
+fastapi>=0.110
+uvicorn>=0.29
+databricks-sdk>=0.38
+# psycopg lets the cost center read the agent.interactions ledger from the
+# backbone instance. Imported lazily so the app boots without it.
+psycopg[binary]>=3.1

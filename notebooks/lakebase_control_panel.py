@@ -57,7 +57,7 @@ w = WorkspaceClient()
 current_user = w.current_user.me().user_name
 
 # Per-cloud default node types (small, cost-tuned)
-DEFAULT_NODE_TYPES = {"aws": "m5d.large", "azure": "Standard_DS3_v2", "gcp": "n2-standard-4"}
+DEFAULT_NODE_TYPES = {"aws": "m5d.large", "azure": "Standard_D4s_v3", "gcp": "n2-standard-4"}
 node_type = DEFAULT_NODE_TYPES.get(cloud, "m5d.large")
 
 # Cost guardrail

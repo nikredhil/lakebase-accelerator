@@ -1,4 +1,4 @@
-.PHONY: install plan deploy destroy status list test test-e2e help
+.PHONY: install plan deploy destroy status list test test-e2e help sync-agent-app
 PY ?= python3
 NAME   ?= example
 TARGET ?= dev
@@ -7,6 +7,13 @@ TAGS   ?=
 
 install:
 	$(PY) -m pip install -r requirements.txt
+
+# Keep the agent backbone app's copies of the shared modules in sync with the
+# control-plane app (Databricks Apps deploy one source tree per app).
+sync-agent-app:
+	cp app/service.py app/pricing.py app/blueprints.py app/db.py agent_app/
+	cp app/sql/*.sql app/sql/README.md agent_app/sql/
+	@echo "synced shared modules into agent_app/ (agent.py is owned by agent_app)"
 
 plan:
 	$(PY) -m accelerator.cli plan $(NAME) --target $(TARGET) $(if $(VARS),--vars-file $(VARS),) $(if $(TAGS),--tags $(TAGS),)

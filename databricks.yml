@@ -16,11 +16,29 @@ sync:
     - "accelerator/**/*.py"
     - "notebooks/**"
     - "usecases/**"
+    - "app/**"
+    - "agent_app/**"
+
+resources:
+  apps:
+    # Control plane: deploy/monitor/destroy Lakebase instances + cost center.
+    lakebase_ui:
+      name: lakebase-accelerator
+      description: "Red/white control-plane UI: deploy/monitor/destroy Lakebase instances + cost center."
+      source_code_path: ./app
+
+    # Stateful Agent Backbone: the live agent chat app (separate app).
+    lakebase_agent_backbone:
+      name: lakebase-agent-backbone
+      description: "Stateful Agent Backbone — chat agent with memory in governed Lakebase Postgres."
+      source_code_path: ./agent_app
 
 targets:
   dev:
     default: true
     mode: development
+    presets:
+      name_prefix: ""   # app names must be lowercase-hyphen only; skip the [dev user] prefix
     workspace:
       root_path: /Workspace/Users/${workspace.current_user.userName}/.bundle/${bundle.name}/${bundle.target}
 

@@ -23,7 +23,7 @@ WORKSPACES_DIR = REPO_ROOT / ".lakebase"
 
 DEFAULT_NODE_TYPES = {
     "aws": "m5d.large",
-    "azure": "Standard_DS3_v2",
+    "azure": "Standard_D4s_v3",
     "gcp": "n2-standard-4",
 }
 
