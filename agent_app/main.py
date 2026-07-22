@@ -56,6 +56,10 @@ class ChatRequest(BaseModel):
     thread_id: str | None = None
     branch: str = "main"
     model: str = "databricks-claude-sonnet-4-5"
+    # Logical agent identity + version for the fleet/versioning story: every ledger row
+    # (and the gold.ai_agent_registry lineage table built from it) carries these.
+    agent_id: str = "lakebase-app-agent"
+    agent_version: str = "v1"
 
 
 class BranchRequest(BaseModel):
@@ -119,11 +123,15 @@ def agent_thread(instance: str, thread_id: str, branch: str = "main") -> list[di
 
 
 @app.post("/api/agent/chat")
-def agent_chat(req: ChatRequest) -> dict[str, Any]:
+def agent_chat(req: ChatRequest, request: Request) -> dict[str, Any]:
     try:
         return _agent().chat(
             client(), req.instance, req.message,
             thread_id=req.thread_id, branch=req.branch, model=req.model,
+            agent_version=req.agent_version, agent_id=req.agent_id,
+            # The ledger row should carry the human behind the turn, not the app
+            # SP the workspace calls run as — Apps forward the signed-in user here.
+            user_id=request.headers.get("x-forwarded-email") or "app-user",
         )
     except Exception as e:
         raise HTTPException(status_code=502, detail=str(e))

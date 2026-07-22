@@ -24,7 +24,11 @@ from __future__ import annotations
 # --------------------------------------------------------------------------- #
 LAKEBASE_DBU_PER_CU_HOUR = 0.213          # Lakebase autoscaling compute
 APPS_DBU_PER_HOUR = {"MEDIUM": 0.5, "LARGE": 1.0}   # Databricks Apps by size
-MODEL_SERVING_USD_PER_DBU = 0.07          # Mosaic AI Model Serving $/DBU
+# Verified against this workspace's system.billing.list_prices (2026-07):
+# PREMIUM_ANTHROPIC_MODEL_SERVING bills at $0.105/DBU on Azure, not the $0.07
+# generic serving rate — using the billed rate keeps the per-turn ledger
+# reconcilable against system.billing.usage.
+MODEL_SERVING_USD_PER_DBU = 0.105         # Mosaic AI Model Serving $/DBU
 
 # Published $/DBU for serverless compute (Apps + Lakebase). Edit to match your
 # workspace's contract; the live system.billing.list_prices query overrides it

@@ -15,14 +15,38 @@ Branching clones a thread's memory under a new branch label for A/B / regression
 """
 from __future__ import annotations
 
+import os
 import time
 import uuid
+from contextlib import nullcontext
 
 from databricks.sdk import WorkspaceClient
 from databricks.sdk.service.serving import ChatMessage, ChatMessageRole
 
 import db
 import pricing
+
+# MLflow tracing is best-effort: spans land in the experiment named by
+# MLFLOW_EXPERIMENT (see app.yaml), but a missing wheel, an unreachable tracking
+# server, or a permissions gap must never block or break chat.
+try:
+    import mlflow
+
+    mlflow.set_tracking_uri("databricks")
+    mlflow.set_experiment(os.environ.get("MLFLOW_EXPERIMENT", "/Shared/agent-backbone-traces"))
+except Exception:
+    mlflow = None
+
+
+def _span(name: str, span_type: str):
+    """An MLflow span context manager, or a no-op one when tracing is unavailable."""
+    if mlflow is None:
+        return nullcontext()
+    try:
+        return mlflow.start_span(name=name, span_type=span_type)
+    except Exception:
+        return nullcontext()
+
 
 EMBED_ENDPOINT = "databricks-bge-large-en"
 RECALL_K = 5
@@ -130,39 +154,69 @@ def chat(
     branch: str = "main",
     model: str = "databricks-claude-sonnet-4-5",
     agent_version: str = "v1",
+    agent_id: str = "lakebase-app-agent",
     user_id: str = "app-user",
 ) -> dict:
     thread_id = thread_id or f"th_{uuid.uuid4().hex[:12]}"
 
-    history = get_thread(w, instance, thread_id, branch)
-    qvec = _embed(w, user_msg)
-    memories = _recall(w, instance, user_id, qvec)
+    with _span("agent_chat", "AGENT") as root:
+        try:
+            if root:
+                root.set_inputs({"message": user_msg, "thread_id": thread_id,
+                                 "branch": branch, "model": model, "user_id": user_id})
+        except Exception:
+            pass
 
-    messages = [ChatMessage(role=ChatMessageRole.SYSTEM, content=SYSTEM_PROMPT)]
-    if memories:
-        messages.append(ChatMessage(
-            role=ChatMessageRole.SYSTEM,
-            content="Recalled memories:\n- " + "\n- ".join(memories),
-        ))
-    for h in history:
-        role = ChatMessageRole.ASSISTANT if h["role"] == "assistant" else ChatMessageRole.USER
-        messages.append(ChatMessage(role=role, content=h["content"] or ""))
-    messages.append(ChatMessage(role=ChatMessageRole.USER, content=user_msg))
+        history = get_thread(w, instance, thread_id, branch)
+        with _span("embed_query", "EMBEDDING"):
+            qvec = _embed(w, user_msg)
+        with _span("memory_recall", "RETRIEVER") as recall_span:
+            memories = _recall(w, instance, user_id, qvec)
+            try:
+                if recall_span:
+                    recall_span.set_outputs({"memories": memories})
+            except Exception:
+                pass
 
-    t0 = time.time()
-    resp = w.serving_endpoints.query(name=model, messages=messages)
-    latency_ms = int((time.time() - t0) * 1000)
-    reply = resp.choices[0].message.content if resp.choices else ""
-    usage = resp.usage
-    in_tok = int(getattr(usage, "prompt_tokens", 0) or 0)
-    out_tok = int(getattr(usage, "completion_tokens", 0) or 0)
-    cost_usd = pricing.token_cost(model, in_tok, out_tok)
+        messages = [ChatMessage(role=ChatMessageRole.SYSTEM, content=SYSTEM_PROMPT)]
+        if memories:
+            messages.append(ChatMessage(
+                role=ChatMessageRole.SYSTEM,
+                content="Recalled memories:\n- " + "\n- ".join(memories),
+            ))
+        for h in history:
+            role = ChatMessageRole.ASSISTANT if h["role"] == "assistant" else ChatMessageRole.USER
+            messages.append(ChatMessage(role=role, content=h["content"] or ""))
+        messages.append(ChatMessage(role=ChatMessageRole.USER, content=user_msg))
 
-    turn = _next_turn(w, instance, thread_id, branch)
-    _persist_turn(w, instance, thread_id, branch, turn, "user", user_msg, model,
-                  agent_version, None, None, None, None, user_id, qvec)
-    _persist_turn(w, instance, thread_id, branch, turn + 1, "assistant", reply, model,
-                  agent_version, in_tok, out_tok, latency_ms, cost_usd, user_id, None)
+        t0 = time.time()
+        with _span("llm_call", "LLM") as llm_span:
+            resp = w.serving_endpoints.query(name=model, messages=messages)
+            latency_ms = int((time.time() - t0) * 1000)
+            reply = resp.choices[0].message.content if resp.choices else ""
+            usage = resp.usage
+            in_tok = int(getattr(usage, "prompt_tokens", 0) or 0)
+            out_tok = int(getattr(usage, "completion_tokens", 0) or 0)
+            try:
+                if llm_span:
+                    llm_span.set_attributes({"model": model, "prompt_tokens": in_tok,
+                                             "completion_tokens": out_tok, "latency_ms": latency_ms})
+            except Exception:
+                pass
+        cost_usd = pricing.token_cost(model, in_tok, out_tok)
+
+        turn = _next_turn(w, instance, thread_id, branch)
+        _persist_turn(w, instance, thread_id, branch, turn, "user", user_msg, model,
+                      agent_version, None, None, None, None, user_id, qvec, agent_id)
+        _persist_turn(w, instance, thread_id, branch, turn + 1, "assistant", reply, model,
+                      agent_version, in_tok, out_tok, latency_ms, cost_usd, user_id, None, agent_id)
+
+        try:
+            if root:
+                root.set_outputs({"reply": reply, "prompt_tokens": in_tok,
+                                  "completion_tokens": out_tok, "cost_usd": cost_usd})
+        except Exception:
+            pass
 
     return {
         "thread_id": thread_id,
@@ -177,7 +231,8 @@ def chat(
 
 
 def _persist_turn(w, instance, thread_id, branch, turn, role, content, model,
-                  agent_version, in_tok, out_tok, latency_ms, cost_usd, user_id, qvec):
+                  agent_version, in_tok, out_tok, latency_ms, cost_usd, user_id, qvec,
+                  agent_id="lakebase-app-agent"):
     with db.connect(w, instance) as conn:
         with conn.cursor() as cur:
             cur.execute(
@@ -185,7 +240,7 @@ def _persist_turn(w, instance, thread_id, branch, turn, role, content, model,
                    values (%s,%s,%s,%s,%s, now())
                    on conflict (thread_id) do update set last_active_at = now(),
                        agent_version = excluded.agent_version""",
-                (thread_id, user_id, "lakebase-app-agent", agent_version, branch),
+                (thread_id, user_id, agent_id, agent_version, branch),
             )
             cur.execute(
                 """insert into agent.interactions

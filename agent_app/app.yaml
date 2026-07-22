@@ -1,1 +1,7 @@
 command: ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8000"]
+env:
+  # Workspace MLflow experiment that receives the agent's trace spans
+  # (agent_chat > embed_query/memory_recall/llm_call — see agent.py). The app's
+  # service principal needs CAN_EDIT on it; tracing degrades silently otherwise.
+  - name: MLFLOW_EXPERIMENT
+    value: "/Shared/agent-backbone-traces"
